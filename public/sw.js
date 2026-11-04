@@ -1,5 +1,5 @@
 // Together service worker: app shell offline, API always live.
-const CACHE = "together-v9";
+const CACHE = "together-v10";
 const SHELL = ["/", "/index.html", "/app.css", "/app.js", "/qr.js", "/manifest.webmanifest", "/icons/icon.svg", "/icons/icon-192.png", "/fonts/hand-latin.woff2"];
 
 self.addEventListener("install", (e) => {
