@@ -571,3 +571,13 @@ button { cursor: pointer; border: 0; background: none; padding: 0; }
 .qr { margin: 22px auto 4px; width: min(220px, 62vw); text-align: center; }
 .qr svg { display: block; width: 100%; height: auto; border-radius: 18px; box-shadow: var(--shadow); background: #fff; }
 .qr figcaption { margin-top: 10px; font-size: 13px; color: var(--muted); }
+
+/* place or link on a plan */
+.place { display: inline-flex; align-items: center; gap: 5px; max-width: 100%; margin-top: 5px; font-size: 14px; font-weight: 600; color: #2F6FDE; text-decoration: none; cursor: pointer; }
+.place span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-decoration: underline; text-decoration-color: color-mix(in srgb, currentColor 35%, transparent); text-underline-offset: 3px; }
+.place .pin, .c-place .pin { width: 15px; height: 15px; flex: none; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.detail .place { font-size: 16px; margin: 0 0 10px; }
+.c-place { display: flex; align-items: center; gap: 8px; margin: 4px 0 10px; padding: 0 14px; min-height: 48px; border-radius: 14px; background: color-mix(in srgb, var(--ink) 5%, transparent); color: var(--muted); }
+.c-place input { flex: 1; min-width: 0; border: 0; background: transparent; font: inherit; font-size: 16px; color: var(--ink); outline: none; padding: 12px 0; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .place { color: #7FB0FF; } }
+:root[data-theme="dark"] .place { color: #7FB0FF; }

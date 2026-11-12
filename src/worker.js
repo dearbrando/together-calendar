@@ -159,6 +159,7 @@ function cleanEvent(e) {
     end: isTime(e.end) ? e.end : "",
     who: Array.isArray(e.who) ? e.who.filter((w) => typeof w === "string").slice(0, LIMITS.members) : [],
     notes: str(e.notes, LIMITS.notes),
+    where: str(e.where, 300),
     repeat: ["none", "daily", "weekly", "monthly", "yearly"].includes(e.repeat) ? e.repeat : "none",
     files: cleanFiles(e.files),
     remind: [0, 10, 60, 1440].includes(e.remind) ? e.remind : null,

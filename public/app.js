@@ -191,6 +191,27 @@
   const shows = (e) => !S.justMe || !(e.who || []).length || e.who.includes(S.meId);
   const isImage = (f) => /^image\//.test(f.type || "");
   const fmtSize = (n) => n > 1048576 ? `${(n / 1048576).toFixed(1)} MB` : `${Math.max(1, Math.round(n / 1024))} KB`;
+  const PIN = `<svg class="pin" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 21s-6.5-5.6-6.5-11a6.5 6.5 0 0 1 13 0c0 5.4-6.5 11-6.5 11z"/><circle cx="12" cy="10" r="2.3"/></svg>`;
+  // A plan's place: a web link opens as-is, anything else opens in the phone's maps app.
+  const isLinkish = (s) => /^https?:\/\//i.test(s) || (/^(www\.)?[a-z0-9-]+(\.[a-z0-9-]+)+(\/\S*)?$/i.test(s) && !/\s/.test(s));
+  function placeOf(where) {
+    const w = (where || "").trim(); if (!w) return null;
+    if (isLinkish(w)) {
+      const href = /^https?:\/\//i.test(w) ? w : `https://${w}`;
+      let label = w;
+      try { const u = new URL(href); label = u.hostname.replace(/^www\./, "") + (u.pathname.length > 1 || u.search ? "/…" : ""); } catch { return null; }
+      return { href, label, web: true };
+    }
+    const ios = /iP(hone|ad|od)/.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+    const href = ios ? `https://maps.apple.com/?q=${encodeURIComponent(w)}` : `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(w)}`;
+    return { href, label: w, web: false };
+  }
+  const placeLine = (e, tag = "span") => {
+    const p = placeOf(e.where); if (!p) return "";
+    return tag === "a"
+      ? `<a class="place" href="${esc(p.href)}" target="_blank" rel="noopener noreferrer">${PIN}<span>${esc(p.label)}</span></a>`
+      : `<span class="place" role="link" tabindex="0" data-place="${esc(p.href)}">${PIN}<span>${esc(p.label)}</span></span>`;
+  };
   const CLIP = `<svg class="clip" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 11.5l-7.8 7.8a5 5 0 0 1-7-7L13 4.5a3.3 3.3 0 0 1 4.7 4.7l-7.8 7.7a1.7 1.7 0 0 1-2.3-2.3l7.1-7.1"/></svg>`;
   const eventsOn = (day) => Object.values(S.events).filter((e) => occursOn(e, day) && shows(e))
     .sort((a, b) => (a.allDay === b.allDay ? (a.start || "").localeCompare(b.start || "") || a.title.localeCompare(b.title) : a.allDay ? -1 : 1));
@@ -507,6 +528,11 @@
       renderMain(!view.draft);
     });
     $$("[data-mshift]").forEach((b) => b.onclick = () => shiftMonth(+b.dataset.mshift));
+    // Tapping the place on a card opens it, without opening the plan.
+    $$("[data-place]", app).forEach((p) => {
+      const go = (x) => { x.stopPropagation(); x.preventDefault(); window.open(p.dataset.place, "_blank", "noopener"); };
+      p.onclick = go; p.onkeydown = (x) => { if (x.key === "Enter") go(x); };
+    });
     $$("[data-ev]").forEach((b) => b.onclick = () => {
       const ev = S.events[b.dataset.ev];
       if (canChange(ev)) { view.open = null; startDraft(ev); } else { view.draft = null; view.open = ev.id; renderMain(true); }
@@ -544,7 +570,7 @@
     const extras = files.length ? `<span class="ev-files">${imgs.slice(0, 3).map((f) => `<img src="${esc(api.fileUrl(f))}" alt="" loading="lazy">`).join("")}${imgs.length > 3 ? `<span class="more">+${imgs.length - 3}</span>` : ""}${docs ? `<span class="docs">${CLIP}${docs}</span>` : ""}</span>` : "";
     return `<button class="ev" data-ev="${esc(e.id)}"><span class="bar" style="${barStyle(e)}"></span>
       <span class="time">${time}</span>
-      <span class="body"><span class="ttl">${esc(e.title)}</span><span class="meta" style="display:block">${esc(meta)}${e.remind != null ? BELL : ""}</span>${e.notes ? `<span class="note-line">${esc(e.notes)}</span>` : ""}${extras}</span></button>`;
+      <span class="body"><span class="ttl">${esc(e.title)}</span><span class="meta" style="display:block">${esc(meta)}${e.remind != null ? BELL : ""}</span>${placeLine(e)}${e.notes ? `<span class="note-line">${esc(e.notes)}</span>` : ""}${extras}</span></button>`;
   }
 
   // A plan someone else made, shown read-only right where it sits.
@@ -554,6 +580,7 @@
     return `<div class="detail">
       <div class="detail-title">${esc(e.title)}</div>
       <div class="detail-meta">${esc(e.allDay ? "All day" : `${fmtTime(e.start)}${e.end ? ` to ${fmtTime(e.end)}` : ""}`)} · ${esc(who.length ? who.map((m) => m.name).join(", ") : "Everyone")}${e.repeat !== "none" ? ` · ${esc(REPEATS[e.repeat])}` : ""}</div>
+      ${placeLine(e, "a")}
       ${e.notes ? `<p class="detail-note">${esc(e.notes)}</p>` : ""}
       ${attachmentsHTML(e.files || [], false)}
       <div class="detail-foot"><span>${esc(maker ? `Only ${maker.name} or a parent can change this.` : "Only a parent can change this.")}</span><button class="btn small soft" data-close-detail>Close</button></div>
@@ -945,7 +972,7 @@
     e.files = [...(e.files || [])];
     const exact = !!ev && !ev.allDay && !PRESETS.some((p) => p.start === ev.start);
     if (e.remind === undefined) e.remind = null;
-    view.draft = { e, editing: !!ev, exact, more: !!ev && (ev.repeat !== "none" || !!ev.notes || ev.remind != null), uploading: 0, orig: (e.files || []).map((f) => f.id) };
+    view.draft = { e, editing: !!ev, exact, more: !!ev && (ev.repeat !== "none" || !!ev.notes || !!ev.where || ev.remind != null), uploading: 0, orig: (e.files || []).map((f) => f.id) };
     renderMain();
     const t = $("#ct");
     if (t && !ev) t.focus({ preventScroll: true }); // same tap, so phones open the keyboard
@@ -974,13 +1001,14 @@
         ${chip(!e.who.length, "data-cw-all", "Everyone")}
         ${ms.map((m) => chip(e.who.includes(m.id), `data-cw="${esc(m.id)}"`, `<span class="dot" style="background:${m.color}"></span>${esc(m.name)}`)).join("")}
       </div></div>` : ""}
-      ${more ? `<div class="c-row"><span class="c-label">Remind me</span><div class="pills">
+      ${more ? `<label class="c-place">${PIN}<input id="cwh" placeholder="Where? An address or a link (optional)" maxlength="300" value="${esc(e.where || "")}" aria-label="Place or link" autocomplete="off"></label>
+      <div class="c-row"><span class="c-label">Remind me</span><div class="pills">
         ${remindOptions(e).map(([k, v]) => chip(e.remind === k, `data-crm="${k}"`, v)).join("")}
       </div>${e.remind != null && !S.push ? `<button class="link more-link" data-push-on>Turn on notifications for this phone</button>` : ""}</div>
       <div class="c-row"><span class="c-label">Repeats</span><div class="pills">
         ${[["none", "Just once"], ["weekly", "Weekly"], ["monthly", "Monthly"], ["yearly", "Yearly"]].map(([k, v]) => chip(e.repeat === k, `data-cr="${k}"`, v)).join("")}
       </div></div>
-      <input class="c-note" id="cn" placeholder="Add a note (optional)" maxlength="2000" value="${esc(e.notes)}" aria-label="Note">` : `<button class="link more-link" data-cmore>Reminder, repeat or note</button>`}
+      <input class="c-note" id="cn" placeholder="Add a note (optional)" maxlength="2000" value="${esc(e.notes)}" aria-label="Note">` : `<button class="link more-link" data-cmore>Place or link, reminder, note</button>`}
       ${attachmentsHTML(e.files, true)}
       ${e.files.length < 10 ? `<label class="pill attach-pill ${uploading ? "busy" : ""}">${CLIP}${uploading ? "Adding…" : "Add a photo or file"}<input type="file" id="cfile" multiple aria-label="Add a photo or file"></label>` : ""}
       <div class="c-actions">
@@ -1006,6 +1034,7 @@
     title.oninput = () => { e.title = title.value; };
     title.onkeydown = (k) => { if (k.key === "Enter") { k.preventDefault(); title.blur(); } };
     const cn = $("#cn", c); if (cn) cn.oninput = (x) => { e.notes = x.target.value; };
+    const cwh = $("#cwh", c); if (cwh) cwh.oninput = (x) => { e.where = x.target.value; };
     const more = $("[data-cmore]", c); if (more) more.onclick = () => { d.more = true; refreshComposer(); };
     $$("[data-cd]", c).forEach((b) => b.onclick = () => { e.date = b.dataset.cd; refreshComposer(); });
     $("#cdate", c).onchange = (x) => { if (x.target.value) { e.date = x.target.value; refreshComposer(); } };
@@ -1050,7 +1079,7 @@
     $("[data-csave]", c).onclick = () => {
       e.title = $("#ct", c).value.trim();
       if (!e.title) { const t = $("#ct", c); t.classList.remove("nudge"); void t.offsetWidth; t.classList.add("nudge"); t.focus(); return; }
-      Object.assign(e, { notes: (e.notes || "").trim(), by: e.by || S.meId, deleted: false });
+      Object.assign(e, { notes: (e.notes || "").trim(), where: (e.where || "").trim(), by: e.by || S.meId, deleted: false });
       for (const id of d.orig) if (!e.files.some((f) => f.id === id)) api.removeFile(S.code, id);
       queue("events", e);
       const was = d.editing; view.draft = null; view.sel = e.date; view.weekStart = startOfWeek(e.date); view.month = (e.date).slice(0, 8) + "01";
